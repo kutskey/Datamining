@@ -1,0 +1,145 @@
+---
+title: "Analyzing Music with Spotify API and R"
+author: "Andrea De Angelis"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Objective. Learn how to navigate through API documentations and large lists of data. 
+
+In this exercise we set up a few GET requests exploring the Spotify API. 
+We will scrape:  
+
+1. The list of categories of music in Switzerland.  
+
+2. The playlists for a given category.   
+
+3. The songs for a given playlist.   
+
+
+
+# Authentication process
+
+The authentication is quite elaborate. 
+
+The  process is described at [this link](https://developer.spotify.com/documentation/general/guides/authorization-guide/). There are four possible ways, we choose "Client Credentials", which is explained [here](https://developer.spotify.com/documentation/general/guides/authorization/client-credentials/). 
+
+Download the credentials (client ID and the client secret) by placing them in a csv file named `credentials.csv`. 
+You can use Excel to this end.  
+
+Next, the [documentation](https://developer.spotify.com/documentation/general/guides/authorization/code-flow/) says: "The first step is to send a POST request to the `/api/token` endpoint of the Spotify OAuth 2.0 Service with the following parameters...
+
+Here I load the credentials and make the POST request as described in the documentation. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(httr)
+library(rvest)
+
+# Set up your credentials
+spotify_cred <- readr::read_csv(file = here::here("credentials.csv"))
+client_id <- spotify_cred$clientID
+client_secret <-  spotify_cred$secret
+
+response <-  httr::POST(
+  url = 'https://accounts.spotify.com/api/token',
+  accept_json(),
+#  authenticate(user = client_id, password = client_secret),    # This would also be OK.
+  body = list(grant_type = 'client_credentials',        # This is required, check doc
+              client_id = client_id,                     # Credentials
+              client_secret = client_secret, 
+              content_type = "application/x-www-form-urlencoded"),   
+  encode = 'form', 
+verbose()
+)
+
+# Extract content from the call and get access token as described in the docs:
+content <- httr::content(response)
+token <- content$access_token
+
+```
+
+We got the token. Next in ["Use access token"](https://developer.spotify.com/documentation/general/guides/authorization/use-access-token/), I read: Authorization: (Required).  Valid access token following the format: Bearer <Access Token>
+
+So we have to create this `"Bearer `" string before the access token. 
+
+```{r}
+authorization_header <- str_c(content$token_type, content$access_token, sep = " ")
+```
+
+
+
+Get Spotify categories for Switzerland. Documentation at this link: [https://developer.spotify.com/documentation/web-api/reference/get-categories](https://developer.spotify.com/documentation/web-api/reference/get-categories)
+
+
+```{r}
+# Set up the endpoint and parameters
+url_cats <- "https://api.spotify.com/v1/browse/categories"
+params <- list(
+  country = "CH",
+  limit = 10
+)
+
+# Make the GET request
+response <- GET(url_cats, 
+                query = params, 
+                add_headers("Authorization" = authorization_header))
+
+# Process the response
+cats <- content(response, as = "parsed", encoding = "UTF-8")
+
+cats[[1]]$items[[1]]$name    # name
+cats[[1]]$items[[1]]$id      # id
+cats[[1]]$items[[1]]$href    # url for the endpoint
+
+# Let's create a data frame `categories` extracting all the genres:
+ids <- names <- hrefs <- vector(mode = "character", length = 10)
+for (i in 1:10) {
+  ids[i] <- cats[[1]]$items[[i]]$id
+  names[i] <- cats[[1]]$items[[i]]$name
+  hrefs[i] <- cats[[1]]$items[[i]]$href
+}
+categories <- tibble(names = names, hrefs = hrefs, id = ids)
+categories
+```
+
+
+
+# Get categories' playlists: Rock
+
+This is described here: [https://developer.spotify.com/documentation/web-api/reference/get-a-categories-playlists](https://developer.spotify.com/documentation/web-api/reference/get-a-categories-playlists). The endpoints are: `"https://api.spotify.com/v1/browse/categories/{category_id}/playlists"`. 
+
+```{r}
+# Get the category id:
+categories$id[categories$names=="Rock"] # 0JQ5DAqbMKFDXXwE9BDJAr
+# categories %>% filter(names=="Rock") %>% select(id) %>% as.character()   # Same thing in dplyr
+
+url_rock <- str_c("https://api.spotify.com/v1/browse/categories/", categories$id[categories$names=="Rock"],"/playlists")
+params <- list(
+  country = "CH",
+  limit = 10
+)
+
+# Make the GET request
+rock_r <- GET(url_rock, query = params, 
+              add_headers("Authorization" = authorization_header))
+rock <- content(rock_r, as = "parsed", encoding = "UTF-8")
+
+# Get one playlist:
+rock$playlists$items[[1]]
+rock$playlists$items[[1]]$id
+
+# Collect songs from Rock playlists
+# https://developer.spotify.com/documentation/web-api/reference/get-playlist
+url_plls <- str_c("https://api.spotify.com/v1/playlists/", rock$playlists$items[[1]]$id)
+plls_r <- GET(url_plls, query = params, 
+              add_headers("Authorization" = authorization_header))
+plls <- content(plls_r, as = "parsed", encoding = "UTF-8")
+
+# Get songs IDs:
+id = plls$tracks$items[[1]]$track$id
+
+```
+
+You can continue inspecting the documentation and scraping from other endpoints. You can think of various applications including various songs or artists. You can, of course, loop over many items (songs, genres, playlists...)

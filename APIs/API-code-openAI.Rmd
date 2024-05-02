@@ -1,0 +1,69 @@
+---
+title: "OpenAI-API"
+author: "Andrea De Angelis"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+This script shows how to tap into the Open AI API. To execute this you first need to register on [https://openai.com/blog/openai-api](https://openai.com/blog/openai-api), and you also need to insert a payment method and pay some amount to the API. The API usage is not expensive and a couple of francs are sufficient for some testing. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(httr)
+
+# Authentication
+APIkey <- readLines("openai_key.txt")   # place your API key in a .txt file
+bearer <- stringr::str_c("Authorization: Bearer ", APIkey)
+
+```
+
+[Documentation link](https://platform.openai.com/docs/quickstart)
+
+
+# Text generation endpoints
+
+[Text generation](https://platform.openai.com/docs/guides/text-generation)
+You input some text as a prompt, and the API will return a text completion that attempts to match whatever instructions or context you gave it.
+From the documentation, I see that the API works with POST requests.
+
+```{r}
+r <- httr::POST(
+  url = "https://api.openai.com/v1/chat/completions", 
+  content_type("application/json"), 
+  add_headers(Authorization = paste("Bearer", APIkey, sep = " ")), 
+  body = list(
+    model = "gpt-3.5-turbo", 
+    # messages is a list of lists
+    messages = list(
+      list(role = "system", 
+           content = "Write a short sonet about data mining in R in Swiss German"))
+      ), 
+  encode = "json"
+  )
+content(r)
+cat(content(r)$choices[[1]]$message$content)
+```
+
+# Image generation (DALL-E)
+
+[Intro to image generation](https://platform.openai.com/docs/guides/images/usage)
+
+```{r}
+url <- "https://api.openai.com/v1/images/generations"
+
+r <- httr::POST(
+  url = url, 
+  content_type("application/json"), 
+  add_headers(Authorization = paste("Bearer", APIkey, sep = " ")), 
+  body = list(
+    model = "dall-e-3", 
+    prompt = "Mount Pilatus does data mining using R", 
+    n = 1,
+    size = "1024x1024"), encode = "json"
+  )
+browseURL(content(r)$data[[1]]$url)
+
+
+```
+

@@ -1,0 +1,75 @@
+---
+title: "Geo-Genius: Unveil the Location"
+author: "Andrea De Angelis"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+In this exercise, we'll use the `httr` and `jsonlite` packages in R to make an HTTP request to the OpenCage Geocoding API, which provides latitude and longitude coordinates for a given address. The exercise demonstrates how to make a GET request, parse the JSON response, and extract relevant information.
+
+Objective: Determine the latitude and longitude of a given address using the OpenCage Geocoding API.
+
+# Install and load the packages
+
+Install and load the `httr` and `jsonlite` packages. 
+
+```{r}
+library(httr)
+library(jsonlite)
+```
+
+# Sign up for a free OpenCage API key
+
+The link is available here: https://opencagedata.com/api 
+
+```{r}
+browseURL(url = "https://opencagedata.com/api")
+# You can register using the GitHub account. 
+# Once registered, copy the API key
+
+api_key <- rstudioapi::askForPassword()    # Paste the API key in the popup window
+base_url <- "https://api.opencagedata.com/geocode/v1/json"
+```
+
+# Define an address
+
+Create an `address` object with a character string address. 
+
+```{r}
+address <- "Moosstrasse 15, 6003 Luzern, Switzerland"
+
+```
+
+# Make a GET request
+
+Call the function `httr::GET()` with the `url` and `query` arguments. Tips: the query must be set as a list using `list()`. You will need to check the documentation to understand which parameters to give and how. Store the call response into `geocoding_response`. 
+
+```{r}
+geocoding_response <- GET(url = base_url, query = list(q = address, key = api_key))
+``
+```
+
+# Check the status code
+
+```{r}
+geocoding_response$status_code
+
+```
+
+# Parse JSON and display
+
+Good luck!
+
+```{r}
+geocoding_data <- content(geocoding_response, as = "text") %>% fromJSON()
+latitude <- geocoding_data$results$geometry$lat
+longitude <- geocoding_data$results$geometry$lng
+country <- geocoding_data$results$components$country
+
+```
+
